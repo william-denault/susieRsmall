@@ -176,7 +176,11 @@ ibss_fit <- function(data, params, model) {
       # compute_residuals and update_fitted_values use
       # model$slot_weights[l] to scale effect l's contribution.
       model <- single_effect_update(data, params, model, l)
-
+      if (isTRUE(params$use_servin_stephens) && params$L > 1) {
+        c_reg <- 1 / (sqrt(model$sigma2) * sqrt(data$n))
+        params$alpha0 <- c_reg
+        params$beta0  <- c_reg
+      }
       # Gamma-Poisson slot activity update (susieAnn ibss_ann.R:148-163)
       if (use_c_hat) {
         model <- update_c_hat(data, model, l)
