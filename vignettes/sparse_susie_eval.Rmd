@@ -19,7 +19,7 @@ knitr::opts_chunk$set(collapse = TRUE,comment = "#",fig.width = 4.5,
 
 ```{r, warning=FALSE}
 library(Matrix)
-library(susieR)
+library(susieRsmall)
 set.seed(1)
 ```
 
@@ -55,7 +55,7 @@ p <- 1000
 beta <- rep(0,p)
 beta[c(1,300,400,1000)] <- 10 
 X.dense  <- create_sparsity_mat(0.99,n,p)
-X.sparse <- as(X.dense,"sparseMatrix")
+X.sparse <- as(X.dense,"CsparseMatrix")
 y <- c(X.dense %*% beta + rnorm(n))
 ```
 

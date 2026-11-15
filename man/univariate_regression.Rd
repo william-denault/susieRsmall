@@ -2,7 +2,6 @@
 % Please edit documentation in R/univariate_regression.R
 \name{univariate_regression}
 \alias{univariate_regression}
-\alias{calc_z}
 \title{Perform Univariate Linear Regression Separately for Columns of X}
 \usage{
 univariate_regression(
@@ -11,11 +10,8 @@ univariate_regression(
   Z = NULL,
   center = TRUE,
   scale = FALSE,
-  return_residuals = FALSE,
-  method = c("lmfit", "sumstats")
+  return_residuals = FALSE
 )
-
-calc_z(X, Y, center = FALSE, scale = FALSE)
 }
 \arguments{
 \item{X}{n by p matrix of regressors.}
@@ -33,9 +29,6 @@ are used in place of y.}
 
 \item{return_residuals}{Whether or not to output the residuals if Z
 is not \code{NULL}.}
-
-\item{method}{Either \dQuote{sumstats} (faster implementation) or
-\dQuote{lmfit} (uses \code{\link[stats]{.lm.fit}}).}
 }
 \value{
 A list with two vectors containing the least-squares
@@ -46,7 +39,8 @@ A list with two vectors containing the least-squares
 }
 \description{
 This function performs the univariate linear
-  regression y ~ x separately for each column x of X. The estimated effect size
+  regression y ~ x separately for each column x of X. Each regression
+  is implemented using \code{.lm.fit()}. The estimated effect size
   and stardard error for each variable are outputted.
 }
 \examples{

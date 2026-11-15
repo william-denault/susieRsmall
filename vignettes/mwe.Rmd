@@ -23,7 +23,7 @@ except that computation will grow as $L$ grows.
 Here is a minimal example:
 
 ```{r}
-library(susieR)
+library(susieRsmall)
 set.seed(1)
 n    <- 1000
 p    <- 1000

@@ -25,7 +25,7 @@ level. This data set is shipped with `susieR`. It is simulated to have
 exactly three non-zero effects.
 
 ```{r}
-library(susieR)
+library(susieRsmall)
 set.seed(1)
 ```
 

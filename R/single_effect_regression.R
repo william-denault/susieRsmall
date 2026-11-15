@@ -1,158 +1,199 @@
-# =============================================================================
-# SINGLE EFFECT REGRESSION
-#
-# Performs single effect regression for the lth effect in the SuSiE model.
-# Computes posterior moments, log Bayes factors, and optimizes prior variance.
-# =============================================================================
+#' @rdname single_effect_regression
 #'
-#' @param data Data object (individual, ss, or rss_lambda)
-#' @param params Validated params object
-#' @param model Current SuSiE model object
-#' @param l Effect index being updated
+#' @title Bayesian single-effect linear regression
 #'
-#' @return Updated model with alpha, mu, mu2, lbf, lbf_variable, V, and KL stored for the lth effect
+#' @description These methods fit the regression model \eqn{y = Xb +
+#'   e}, where elements of e are \emph{i.i.d.}  \eqn{N(0,s^2)}, and b is
+#'   a p-vector of effects to be estimated. The assumption is that b has
+#'   exactly one non-zero element, with all elements equally likely to
+#'   be non-zero. The prior on the coefficient of the non-zero element
+#'   is \eqn{N(0,V)}.
+#'
+#' @details \code{single_effect_regression_ss} performs single-effect
+#' linear regression with summary data, in which only the statistcs
+#' \eqn{X^Ty} and diagonal elements of \eqn{X^TX} are provided to the
+#' method.
+#'
+#' \code{single_effect_regression_rss} performs single-effect linear
+#' regression with z scores. That is, this function fits the
+#' regression model \eqn{z = R*b + e}, where e is \eqn{N(0,Sigma)},
+#' \eqn{Sigma = residual_var*R + lambda*I}, and the b is a p-vector of
+#' effects to be estimated. The assumption is that b has exactly one
+#' non-zero element, with all elements equally likely to be non-zero.
+#' The prior on the non-zero element is \eqn{N(0,V)}. The required
+#' summary data are the p-vector \code{z} and the p by p matrix
+#' \code{Sigma}. The summary statistics should come from the same
+#' individuals.
+#'
+#' @param y An n-vector.
+#'
+#' @param X An n by p matrix of covariates.
+#'
+#' @param V A scalar giving the (initial) prior variance. For
+#'   \code{small = TRUE}, a variance ratio in
+#'   \eqn{b | \sigma^2 \sim N(0,V\sigma^2)}.
+#'
+#' @param residual_variance The residual variance.
+#'
+#' @param prior_weights A p-vector of prior weights.
+#'
+#' @param optimize_V The optimization method to use for fitting the
+#'   prior variance.
+#'
+#' @param check_null_threshold Scalar specifying threshold on the
+#'   log-scale to compare likelihood between current estimate and zero
+#'   the null.
+#' @param small Logical. Useful when fitting susie on data with a limited sample size.
+#'     If set to TRUE, susie is fitted using single-effect regression with the Servin and Stephens prior
+#'     instead of the default Gaussian prior. This integrates residual variance.
+#'     Default is FALSE.
+#'
+#' @param alpha0 Twice the inverse-gamma shape for \code{small = TRUE}.
+#'
+#' @param beta0 Twice the inverse-gamma scale, in squared response units,
+#'   for \code{small = TRUE}.
+#'
+#' @return A list with the following elements:
+#'
+#' \item{alpha}{Vector of posterior inclusion probabilities;
+#'   \code{alpha[i]} is posterior probability that the ith coefficient
+#'   is non-zero.}
+#'
+#' \item{mu}{Vector of posterior means (conditional on inclusion).}
+#'
+#' \item{mu2}{Vector of posterior second moments (conditional on
+#'   inclusion).}
+#'
+#' \item{lbf}{Vector of log-Bayes factors for each variable.}
+#'
+#' \item{lbf_model}{Log-Bayes factor for the single effect regression.}
+#'
+#' \code{single_effect_regression} and \code{single_effect_regression_ss}
+#' additionally output:
+#'
+#' \item{V}{Prior variance (after optimization if \code{optimize_V !=
+#'   "none"}).}
+#'
+#' \item{loglik}{The log-likelihood, \eqn{\log p(y | X, V)}.}
+#'
+#' @importFrom stats dnorm
+#' @importFrom stats uniroot
+#' @importFrom stats optim
+#' @importFrom Matrix colSums
 #'
 #' @keywords internal
-#' @noRd
-single_effect_regression <- function(data, params, model, l) {
+#'
+single_effect_regression =
+  function (y, X, V,
+            residual_variance = 1,
+            prior_weights     = NULL,
+            optimize_V        = c("none", "optim", "uniroot", "EM", "simple"),
+            check_null_threshold = 0,
+            small             =FALSE,
+            alpha0             = 0,
+            beta0              = 0) {
 
-    # Fixed mixture prior path: evaluate BFs on a pre-specified variance grid
-    # with given mixture weights, bypassing scalar V optimization entirely.
-    # Activated by estimate_prior_method = "fixed_mixture" with non-NULL
-    # prior_variance_grid and mixture_weights in params.
-    if (params$estimate_prior_method == "fixed_mixture") {
-      ser_stats <- compute_ser_statistics(data, params, model, l)
-      model <- loglik_mixture(data, params, model, ser_stats, l)
-      model <- calculate_posterior_moments_mixture(data, params, model, l)
-      model <- compute_kl(data, params, model, l)
-      # Store effective V as posterior-weighted grid mean (for diagnostics)
-      V_eff <- sum(params$mixture_weights * params$prior_variance_grid)
-      model <- set_prior_variance_l(model, l, V_eff)
-      return(model)
-    }
+  optimize_V = match.arg(optimize_V)
+  if (small) {
+    n_effective = attr(X,"n_effective")
+    if (is.null(n_effective))
+      n_effective = nrow(X)
+    return(single_effect_regression_nig(compute_Xty(X,y),attr(X,"d"),
+             sum(y^2),n_effective,V,prior_weights,optimize_V,
+             check_null_threshold,alpha0,beta0))
+  }
+  Xty = compute_Xty(X,y)
+  betahat = (1/attr(X,"d")) * Xty
+  shat2 = residual_variance/attr(X,"d")
+  if (is.null(prior_weights))
 
-    # Standard scalar V path (unchanged)
+    prior_weights = rep(1/ncol(X),ncol(X))
 
-    # Store Prior Variance Value for the lth Effect
-    V <- get_prior_variance_l(model, l)
+  if (optimize_V != "EM" && optimize_V != "none"){
 
-    # Compute SER statistics (betahat, shat2, initial value for prior variance optimization)
-    ser_stats <- compute_ser_statistics(data, params, model, l)
+    V = optimize_prior_variance(optimize_V,betahat,shat2,prior_weights,
+                                alpha = NULL,post_mean2 = NULL,V_init = V,
+                                check_null_threshold = check_null_threshold)
 
-    # Optimize Prior Variance of lth effect
-    if (params$estimate_prior_method != "EM" && params$estimate_prior_method != "none") {
-      V <- optimize_prior_variance(data, params, model, ser_stats,
-        V_init = V)
-    }
-
-    # Compute logged Bayes factors and posterior inclusion probabilities
-    model <- loglik(data, params, model, V, ser_stats, l)
-
-    # Compute posterior moments
-    model <- calculate_posterior_moments(data, params, model, V, l)
-
-    # Compute KL divergence
-    model <- compute_kl(data, params, model, l)
-
-    # Expectation-maximization prior variance update using posterior moments
-    if (params$estimate_prior_method == "EM") {
-      V <- optimize_prior_variance(data, params, model, ser_stats,
-                                    get_alpha_l(model, l),
-                                    get_posterior_moments_l(model, l),
-                                    V_init = V)
-    }
-
-    # Store prior variance
-    model <- set_prior_variance_l(model, l, V)
-
-    return(model)
   }
 
-# =============================================================================
-# PRIOR VARIANCE OPTIMIZATION
-#
-# Optimizes prior variance for single effects using different methods.
-# Handles optim, EM, simple methods and null threshold checking.
-# =============================================================================
-#'
-#' @param data Data object
-#' @param params Validated params object
-#' @param model Current SuSiE model object
-#' @param ser_stats SER statistics and optimization parameters from compute_ser_statistics
-#' @param moments Posterior moments from calculate_posterior_moments
-#' @param ... Additional method-specific parameters
-#'
-#' @return Optimized prior variance (scalar)
-#'
-#' @keywords internal
-#' @noRd
-optimize_prior_variance <- function(data, params, model, ser_stats,
-                                    alpha = NULL, moments = NULL,
-                                    V_init = NULL) {
-  V <- V_init
-  if (params$estimate_prior_method != "simple") {
-    if (params$estimate_prior_method == "optim") {
-      V_param_opt <- optim(
-        par = ser_stats$optim_init,
-        fn = function(V_param) neg_loglik(data, params, model, V_param, ser_stats),
-        method = "Brent",
-        lower = ser_stats$optim_bounds[1],
-        upper = ser_stats$optim_bounds[2]
-      )$par
 
-      # Convert optimized parameter to V based on scale of optimization
-      V_new <- if (ser_stats$optim_scale == "linear") {
-        V_param_opt
-      } else {
-        exp(V_param_opt)
+  if(!small){
+    # log(po) = log(BF * prior) for each SNP
+    lbf = dnorm(betahat,0,sqrt(V + shat2),log = TRUE) -
+      dnorm(betahat,0,sqrt(shat2),log = TRUE)
+    lpo = lbf + log(prior_weights + sqrt(.Machine$double.eps))
+
+    # Deal with special case of infinite shat2 (e.g., happens if X does
+    # not vary).
+    lbf[is.infinite(shat2)] = 0
+    lpo[is.infinite(shat2)] = 0
+    maxlpo = max(lpo)
+
+    # w is proportional to
+    #
+    #   posterior odds = BF * prior,
+    #
+    # but subtract max for numerical stability.
+    w_weighted = exp(lpo - maxlpo)
+
+    # Posterior prob for each SNP.
+    weighted_sum_w = sum(w_weighted)
+    alpha = w_weighted / weighted_sum_w
+    post_var = (1/V + attr(X,"d")/residual_variance)^(-1) # Posterior variance.
+    post_mean = (1/residual_variance) * post_var * Xty
+    post_mean2 = post_var + post_mean^2 # Second moment.
+
+    # BF for single effect model.
+    lbf_model = maxlpo + log(weighted_sum_w)
+    loglik = lbf_model + sum(dnorm(y,0,sqrt(residual_variance),log = TRUE))
+
+    if(optimize_V == "EM")
+      V = optimize_prior_variance(optimize_V,betahat,shat2,prior_weights,
+                                  alpha,post_mean2,
+                                  check_null_threshold = check_null_threshold)
+
+    return(list(alpha = alpha,mu = post_mean,mu2 = post_mean2,lbf = lbf,
+                lbf_model = lbf_model,V = V,loglik = loglik))
+  }
+}
+
+# Estimate prior variance.
+est_V_uniroot = function (betahat, shat2, prior_weights) {
+  V.u = uniroot(negloglik.grad.logscale,c(-10,10),extendInt = "upX",
+                betahat = betahat,shat2 = shat2,prior_weights = prior_weights)
+  return(exp(V.u$root))
+}
+
+optimize_prior_variance = function (optimize_V, betahat, shat2, prior_weights,
+                                    alpha = NULL, post_mean2 = NULL,
+                                    V_init = NULL, check_null_threshold = 0) {
+  V = V_init
+  if (optimize_V != "simple") {
+    if(optimize_V == "optim") {
+      lV = optim(par = log(max(c(betahat^2-shat2,1),na.rm = TRUE)),
+          fn = neg.loglik.logscale,betahat = betahat,shat2 = shat2,
+          prior_weights = prior_weights,method = "Brent",lower = -30,
+          upper = 15)$par
+      ## if the estimated one is worse than current one, don't change it.
+      if(neg.loglik.logscale(lV, betahat = betahat,shat2 = shat2,prior_weights = prior_weights) >
+         neg.loglik.logscale(log(V), betahat = betahat,
+                             shat2 = shat2,prior_weights = prior_weights)){
+        lV = log(V)
       }
-
-      # Check if new estimate improves likelihood
-      V_param_init <- if (ser_stats$optim_scale == "linear") V else log(V)
-      if (neg_loglik(data, params, model, V_param_opt, ser_stats) >
-          neg_loglik(data, params, model, V_param_init, ser_stats)) {
-        V_new <- V
-      }
-      V <- V_new
-    } else if (params$estimate_prior_method == "uniroot") {
-      # Root-finding on the gradient of neg_loglik (on the optimization scale)
-      neg_loglik_fn <- function(V_param) neg_loglik(data, params, model, V_param, ser_stats)
-      neg_loglik_grad <- function(V_param) {
-        h <- max(abs(V_param) * 1e-4, 1e-8)
-        (neg_loglik_fn(V_param + h) - neg_loglik_fn(V_param - h)) / (2 * h)
-      }
-
-      V_root <- tryCatch(
-        uniroot(neg_loglik_grad,
-                interval = c(ser_stats$optim_bounds[1], ser_stats$optim_bounds[2]),
-                extendInt = "yes",
-                tol = .Machine$double.eps^0.25)$root,
-        error = function(e) {
-          # Fallback: if uniroot fails (no sign change), use initial value
-          if (ser_stats$optim_scale == "linear") V else log(V)
-        }
-      )
-
-      V_new <- if (ser_stats$optim_scale == "linear") V_root else exp(V_root)
-
-      # Check if new estimate improves likelihood
-      V_param_init <- if (ser_stats$optim_scale == "linear") V else log(V)
-      if (neg_loglik(data, params, model, V_root, ser_stats) >
-          neg_loglik(data, params, model, V_param_init, ser_stats)) {
-        V_new <- V
-      }
-      V <- V_new
-    } else if (params$estimate_prior_method == "EM") {
-      V <- em_update_prior_variance(data, params, model, alpha, moments, V_init)
-    } else {
-      stop("Invalid option for estimate_prior_method: ", params$estimate_prior_method)
-    }
+      V = exp(lV)
+    } else if (optimize_V == "uniroot")
+      V = est_V_uniroot(betahat,shat2,prior_weights)
+    else if (optimize_V == "EM")
+      V = sum(alpha * post_mean2)
+    else
+     stop("Invalid option for optimize_V method")
   }
 
   # Set V exactly 0 if that beats the numerical value by
   # check_null_threshold in loglik. check_null_threshold = 0.1 is
   # exp(0.1) = 1.1 on likelihood scale; it means that for parsimony
-  # reasons we set estimate of V to zero, if its numerical estimate is
+  # reasons we set estiate of V to zero, if its numerical estimate is
   # only "negligibly" different from zero. We use a likelihood ratio
   # of exp(check_null_threshold) to define "negligible" in this
   # context. This is fairly modest condition compared to, say, a
@@ -160,49 +201,76 @@ optimize_prior_variance <- function(data, params, model, ser_stats,
   # non-zeros estimates unless they are indeed small enough to be
   # neglible. See more intuition at
   # https://stephens999.github.io/fiveMinuteStats/LR_and_BF.html
-  #
-  # For EM, skip this check: the null check would zero V without
-  # recomputing the posterior, creating an inconsistent (q, V) pair
-  # that can decrease the ELBO. Null effects are handled by
-  # trim_null_effects() after convergence instead.
-  # see https://github.com/stephenslab/mvsusieR/issues/26
-  if (params$estimate_prior_method != "EM" &&
-      params$estimate_prior_method != "none") {
-    if (loglik(data, params, model, 0, ser_stats) +
-      params$check_null_threshold >= loglik(data, params, model, V, ser_stats)) {
-      V <- 0
-    }
-  }
-
+  if (loglik(0,betahat,shat2,prior_weights) +
+      check_null_threshold >= loglik(V,betahat,shat2,prior_weights))
+    V = 0
   return(V)
 }
+# In these functions, s2 represents residual_variance, and shat2 is an
+# estimate of it.
 
-# =============================================================================
-# SINGLE EFFECT UPDATE
+# The log likelihood function for SER model (based on summary data
+# betahat, shat2) as a function of prior variance V.
 #
-# High-level function that updates one effect in the SuSiE model.
-# Coordinates residual computation, SER, KL divergence, and fitted value updates.
-# =============================================================================
-#'
-#' @param data Data object (individual, ss, or rss_lambda)
-#' @param params Validated params object
-#' @param model Current SuSiE model object
-#' @param l Effect index being updated
-#'
-#' @return Updated SuSiE model object with new parameters for effect l
-#'
-#' @keywords internal
-#' @noRd
-single_effect_update <- function(data, params, model, l) {
+#' @importFrom Matrix colSums
+#' @importFrom stats dnorm
+loglik = function (V, betahat, shat2, prior_weights) {
 
-  # Compute Residuals
-  model <- compute_residuals(data, params, model, l)
+  #log(bf) for each SNP
+  lbf = dnorm(betahat,0,sqrt(V+shat2),log = TRUE) -
+        dnorm(betahat,0,sqrt(shat2),log = TRUE)
+  lpo = lbf + log(prior_weights + sqrt(.Machine$double.eps))
 
-  # Run Single Effect Regression
-  model <- single_effect_regression(data, params, model, l)
+  # Deal with special case of infinite shat2 (e.g., happens if X does
+  # not vary).
+  lbf[is.infinite(shat2)] = 0
+  lpo[is.infinite(shat2)] = 0
 
-  # Update fitted values
-  model <- update_fitted_values(data, params, model, l)
+  maxlpo = max(lpo)
+  w_weighted = exp(lpo - maxlpo)
+  weighted_sum_w = sum(w_weighted)
+  return(log(weighted_sum_w) + maxlpo)
+}
 
-  return(model)
+neg.loglik.logscale = function(lV,betahat,shat2,prior_weights)
+  -loglik(exp(lV),betahat,shat2,prior_weights)
+
+#' @importFrom Matrix colSums
+#' @importFrom stats dnorm
+loglik.grad = function(V, betahat, shat2, prior_weights) {
+
+  # log(bf) for each SNP.
+  lbf = dnorm(betahat,0,sqrt(V + shat2),log = TRUE) -
+        dnorm(betahat,0,sqrt(shat2),log = TRUE)
+  lpo = lbf + log(prior_weights + sqrt(.Machine$double.eps))
+
+  # Deal with special case of infinite shat2 (e.g., happens if X does
+  # not vary).
+  lbf[is.infinite(shat2)] = 0
+  lpo[is.infinite(shat2)] = 0
+
+  maxlpo = max(lpo)
+  w_weighted = exp(lpo - maxlpo)
+  weighted_sum_w = sum(w_weighted)
+  alpha = w_weighted / weighted_sum_w
+  return(sum(alpha * lbf.grad(V,shat2,betahat^2/shat2)))
+}
+
+# Define loglikelihood and gradient as function of lV:=log(V)
+# to improve numerical optimization
+negloglik.grad.logscale = function (lV, betahat, shat2, prior_weights)
+  -exp(lV) * loglik.grad(exp(lV),betahat,shat2,prior_weights)
+
+# Vector of gradients of logBF_j for each j, with respect to prior
+# variance V.
+lbf.grad = function (V, shat2, T2) {
+  l = 0.5*(1/(V + shat2)) * ((shat2/(V + shat2))*T2 - 1)
+  l[is.nan(l)] = 0
+  return(l)
+}
+
+lbf = function (V, shat2, T2) {
+  l = 0.5*log(shat2/(V + shat2)) + 0.5*T2*(V/(V + shat2))
+  l[is.nan(l)] = 0
+  return(l)
 }

@@ -25,7 +25,7 @@ The simulated data set is simulated to have exactly 3 non-zero
 effects.
 
 ```{r}
-library(susieR)
+library(susieRsmall)
 set.seed(1)
 ```
 
@@ -187,7 +187,7 @@ will add such a column to `Z` before regressing it out.
 Data will be centered as a result. Also the scale of data is changed after regressing out `Z`. 
 This introduces some subtleties in terms of interpreting the results.
 For this reason, we provide covariate adjustment procedure as a tip in the documentation
-and not part of `susieR::susie()` function. Cautions should be taken when applying this procedure and interpreting the result from it.
+and not part of `susieRsmall::susie()` function. Cautions should be taken when applying this procedure and interpreting the result from it.
 
 ## Session information
 

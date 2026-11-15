@@ -1,0 +1,85 @@
+---
+title: Small data example
+author: William Denault
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Small data example}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r knitr-opts, include=FALSE}
+knitr::opts_chunk$set(comment = "#",collapse = TRUE,results = "markup",
+                      fig.align = "center")
+```
+
+This is vignette reproduces an example from the
+[Denault et al paper](https://doi.org/10.1101/2025.05.16.654543).
+
+The data are normalized gene expression, and the goal is to finemap
+genetic variants for expression (eQTLs). 
+
+```{r load-data}
+library(susieRsmall)
+data(data_small)
+y <- data_small$y
+X <- data_small$X
+dim(X)
+```
+
+The original SuSiE procedure displays signs of misscalibration: the
+result is highly suspicious as we find 9 credible sets in a data set
+containing only 47 samples.
+
+```{r run-susie, fig.height=3, fig.width=4, message=FALSE}
+res_susie <- susie(X,y,L = 10,verbose = FALSE)
+res_susie$sets$cs
+susie_plot(res_susie,y = "PIP")
+```
+
+Another clue is that the fine-mapped variants explain >99% of the
+variation in gene expression, which suggests overfitting.
+
+```{r, fig.height=3.5, fig.width=3}
+ypred <- predict(res_susie,X)
+pve <- 1 - drop(res_susie$sigma2/var(y))
+round(100*pve,digits = 1)
+plot(y,ypred,pch = 20)
+abline(a = 0,b = 1,col = "magenta",lty = "dotted")
+```
+
+Setting `small = TRUE` in the susie call uses a slightly different SER
+("single effect regression") model that accounts for uncertainty in the
+residual.
+
+```{r run-susie-small, message=FALSE, warning=FALSE} 
+res_susie_small <- susie(X,y,L = 10,small = TRUE,verbose = TRUE)
+res_susie_small$sets$cs
+```
+
+The results are more plausible as this version of SuSiE only outputs a
+single CS:
+
+```{r, fig.height=3, fig.width=4}
+susie_plot(res_susie_small,y = "PIP")
+```
+
+A SNP in this CS explains, more plausibly, about 45% of the variance
+in expression:
+
+```{r, fig.height=3, fig.width=4}
+i <- res_susie_small$sets$cs$L1
+round(cor(X[,i]),digits = 3)
+i <- i[1]
+pve <- summary(lm(y ~ X[,i]))$r.squared
+round(100*pve,digits = 1)
+```
+
+## Testing with small = TRUE, standardize = FALSE and L = 1
+
+```{r, message=FALSE, warning=FALSE}
+markers <- c(4919,4920,4922,4923)
+res <- susie(X[,markers],y,L = 1,small = TRUE,standardize = FALSE,
+             verbose = TRUE)
+```

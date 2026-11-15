@@ -1,123 +1,94 @@
-# susieR
+# susieRsmall
 
-[![CI](https://github.com/stephenslab/susieR/actions/workflows/ci.yml/badge.svg)](https://github.com/stephenslab/susieR/actions/workflows/ci.yml)
-[![CRAN status badge](https://www.r-pkg.org/badges/version/susieR)](https://cran.r-project.org/package=susieR)
-[![Codecov test coverage](https://codecov.io/gh/StatFunGen/susieR/graph/badge.svg)](https://app.codecov.io/gh/stephenslab/susieR)
+Sum of Single Effects regression with a corrected normal-inverse-gamma (NIG)
+single-effect model for small samples. This package is named `susieRsmall` so
+it can be installed alongside the original `susieR` package.
 
-The `susieR` package implements a simple new way to perform variable
-selection in multiple regression ($y=Xb+e$). The methods implemented
-here are particularly well-suited to settings where some of the X
-variables are highly correlated, and the true effects are highly
-sparse (e.g. <20 non-zero effects in the vector $b$).  One example of
-this is genetic fine-mapping applications, and this application was a
-major motivation for developing these methods. However, the methods
-should also be useful more generally.
+## Installation
 
-The methods are based on a new model for sparse multiple regression,
-which we call the "Sum of Single Effects" (SuSiE) model.  This model,
-which is described in [Wang et al. (2020)](https://doi.org/10.1111/rssb.12388), lends itself to a particularly simple and intuitive fitting 
-procedure -- effectively a Bayesian modification of simple forward 
-selection, which we call "Iterative Bayesian Step-wise Selection".
+Once this source is pushed to `william-denault/susieRsmall`, install it with:
 
-The output of the fitting procedure is a number of "Credible Sets"
-(CSs), which are each designed to have high probability to contain a
-variable with non-zero effect, while at the same time being as small
-as possible. You can think of the CSs as being a set of "highly
-correlated" variables that are each associated with the response: you
-can be confident that one of the variables has a non-zero coefficient,
-but they are too correlated to be sure which one.
-
-The package was initially developed by Gao Wang, Peter Carbonetto,
-Yuxin Zou, Kaiqian Zhang, and Matthew Stephens from the
-[Stephens Lab](https://stephenslab.uchicago.edu) at the University of
-Chicago. It was later extended with new methods and implementations by
-Alexander McCreight from the [StatFunGen Lab](https://wanggroup.org/) at
-Columbia University.
-
-Please
-[post issues](https://github.com/stephenslab/susieR/issues) to ask
-questions, get our support or provide us feedback; please
-[send pull requests](https://github.com/stephenslab/susieR/pulls) if
-you have helped fixing bugs or making improvements to the source code.
-
-## Quick Start
-
-Install susieR from [CRAN](https://cran.r-project.org/package=susieR):
-
-```R
-install.packages("susieR")
+```r
+install.packages("remotes") # once, if needed
+remotes::install_github("william-denault/susieRsmall")
 ```
 
-Alternatively, install the latest development version of `susieR`
-from GitHub:
+The R package is at the repository root; no `subdir` argument is needed.
+Use a public GitHub repository to allow installation without authentication.
+A private repository requires a GitHub token with read access and can return
+HTTP 404 without one.
 
-```R
-# install.packages("remotes")
-remotes::install_github("stephenslab/susieR")
+To install this folder before publishing it, run from the folder itself:
+
+```r
+remotes::install_local(".", upgrade = "never")
 ```
 
-See [here](https://stephenslab.github.io/susieR/articles/mwe.html) for
-a brief illustration of `susieR`. For more documentation and examples
-please visit https://stephenslab.github.io/susieR
+## Usage
 
-## Citing this work
+```r
+fit <- susieRsmall::susie(X, y, prior = "nig", L = 10, max_iter = 300)
+fit$pip
+fit$sets
+```
 
-If you find the `susieR` package or any of the source code in this
-repository useful for your work, please cite both:
+For a reproducible example:
 
-> Wang, G., Sarkar, A., Carbonetto, P. & Stephens, M. (2020). A
-> simple new approach to variable selection in regression, with
-> application to genetic fine mapping. *Journal of the Royal
-> Statistical Society, Series B* **82**, 1273–1300.
-> https://doi.org/10.1111/rssb.12388
+```r
+set.seed(1)
+X <- matrix(rnorm(50 * 100), nrow = 50)
+y <- X[, 1] + rnorm(50)
+fit <- susieRsmall::susie(X, y, prior = "nig", L = 10, max_iter = 300)
+```
 
-> McCreight, A., Cho, Y., Li, R., Nachun, D., Gan, H-Y., Carbonetto, P., Stephens,
-> M., Denault, W.R.P. & Wang, G. (2025). SuSiE 2.0:
-> improved methods and implementations for genetic fine-mapping and
-> phenotype prediction. Submitting to *Genome Biology*.
+## Comparing with susieR on RCC
 
-If you use any of the summary data methods such as `susie_ss` or 
-`susie_rss`, please also cite:
+The `Package` field in `DESCRIPTION` is `susieRsmall`. Both packages can be
+installed in the same R library and called in the same R session. Use explicit
+namespaces to compare the NIG implementation with vanilla SuSiE on identical
+inputs:
 
-> Zou, Y., Carbonetto, P., Wang, G. & Stephens, M. (2022). Fine-mapping
-> from summary data with the "Sum of Single Effects" model. *PLoS
-> Genetics* **18**, e1010299. https://doi.org/10.1371/journal.pgen.1010299
+```r
+fit_nig <- susieRsmall::susie(X, y, prior = "nig", L = 10, max_iter = 300)
+fit_standard <- susieR::susie(X, y, L = 10, max_iter = 300)
 
-If you use the Servin-Stephens prior on residual variance estimates
-(`estimate_residual_method = "Servin_Stephens"`), please also cite:
+c(susieRsmall = as.character(packageVersion("susieRsmall")),
+  susieR = as.character(packageVersion("susieR")))
+```
 
-> Denault, W.R.P., Carbonetto, P., Li, R., Alzheimer's Disease Functional
-> Genomics Consortium, Wang, G. & Stephens, M. (2025). Accounting for
-> uncertainty in residual variances improves calibration of the "Sum of
-> Single Effects" model for small sample sizes. *bioRxiv*, 2025-05.
-> Under review for *Nature Methods*.
+Record both package versions with the RCC results. The namespaces keep the two
+implementations distinct without attaching either package with `library()`.
 
-If you use infinitesimal effects modeling (`unmappable_effects = "inf"`), 
-please also cite:
+`prior = "nig"` uses `alpha0 = 2` and `beta0 = 2 * var(y)` with an intercept.
+The initial coefficient-to-noise variance ratio is 0.2 and is estimated during
+fitting by default. `small = TRUE` is an equivalent legacy argument. The default
+prior remains Gaussian; NIG must be selected explicitly. The named prior applies
+to individual-level `susie()`, not the summary-statistic functions.
 
-> Cui, R., Elzur, R.A., Kanai, M. et al. (2024). Improving fine-mapping
-> by modeling infinitesimal effects. *Nature Genetics* **56**, 162–169.
-> https://doi.org/10.1038/s41588-023-01597-3
+Read [SMALL_SAMPLE_UPDATE.md](SMALL_SAMPLE_UPDATE.md) for the model, prior
+conventions, and limitations. Version 0.14.21.9003 preserves the corrected
+fitting calculations. Numerical consistency does not guarantee nominal
+frequentist credible-set coverage.
 
-## Developer notes
+## Package contents
 
+This repository contains the R package source, help files, example data,
+vignettes, tests, and original license and attribution. Simulation workflows,
+private configuration, fitted results, backups, and installed libraries are
+not included. The package itself does not require compilation; some dependencies
+may require build tools when installed from source.
 
-+ The `Makefile` contains various R commands to build and maintain the package. 
-For example to build the website via `pkgdown`:
+## Citation and license
 
-   ```bash
-   make pkgdown
-   ```
+This package derives from [stephenslab/susieR](https://github.com/stephenslab/susieR)
+and retains its BSD 3-Clause license and author attribution. See
+[LICENSE](LICENSE) and `citation("susieRsmall")`.
 
-+ When any changes are made to `roxygen2` markup, run
-`make document` to update package `NAMESPACE` and documentation
-files.
+Wang, G., Sarkar, A., Carbonetto, P. and Stephens, M. (2020).
+A simple new approach to variable selection in regression, with application
+to genetic fine mapping. *Journal of the Royal Statistical Society: Series B*,
+82, 1273-1300. https://doi.org/10.1111/rssb.12388
 
-
-+ To format R codes in the `R` folder,
-
-   ```bash
-   for i in `ls R/*.R`; do bash inst/misc/format_r_code.sh $i; done
-   ```
-
-[susie-preprint]: https://doi.org/10.1101/501114
+Zou, Y., Carbonetto, P., Wang, G. and Stephens, M. (2022).
+Fine-mapping from summary data with the Sum of Single Effects model.
+*PLoS Genetics*, 18, e1010299. https://doi.org/10.1371/journal.pgen.1010299
