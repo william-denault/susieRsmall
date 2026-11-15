@@ -1,0 +1,12 @@
+^\.git$
+^\.gitignore$
+^\.gitattributes$
+^\.github$
+^\.Renviron$
+^\.Rprofile$
+^\.Rproj\.user$
+^.*\.Rproj$
+^\.lib$
+^build$
+^.*\.tar\.gz$
+^.*\.Rcheck$

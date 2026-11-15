@@ -1,0 +1,9 @@
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+.Renviron
+.lib/
+*.tar.gz
+*.Rcheck/
+build/
