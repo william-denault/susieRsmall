@@ -31,7 +31,7 @@ y <- X[, 1] + rnorm(50)
 fit <- susieRsmall::susie(X, y, prior = "nig", L = 10, max_iter = 300)
 ```
 
-## Comparing with susieR on RCC
+## Comparing with susieR  
 
 The `Package` field in `DESCRIPTION` is `susieRsmall`. Both packages can be
 installed in the same R library and called in the same R session. Use explicit
@@ -45,9 +45,7 @@ fit_standard <- susieR::susie(X, y, L = 10, max_iter = 300)
 c(susieRsmall = as.character(packageVersion("susieRsmall")),
   susieR = as.character(packageVersion("susieR")))
 ```
-
-Record both package versions with the RCC results. The namespaces keep the two
-implementations distinct without attaching either package with `library()`.
+ 
 
 `prior = "nig"` uses `alpha0 = 2` and `beta0 = 2 * var(y)` with an intercept.
 The initial coefficient-to-noise variance ratio is 0.2 and is estimated during
