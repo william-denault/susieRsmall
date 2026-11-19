@@ -13,17 +13,7 @@ install.packages("remotes") # once, if needed
 remotes::install_github("william-denault/susieRsmall")
 ```
 
-The R package is at the repository root; no `subdir` argument is needed.
-Use a public GitHub repository to allow installation without authentication.
-A private repository requires a GitHub token with read access and can return
-HTTP 404 without one.
-
-To install this folder before publishing it, run from the folder itself:
-
-```r
-remotes::install_local(".", upgrade = "never")
-```
-
+ 
 ## Usage
 
 ```r
