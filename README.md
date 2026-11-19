@@ -9,7 +9,7 @@ it can be installed alongside the original `susieR` package.
 Once this source is pushed to `william-denault/susieRsmall`, install it with:
 
 ```r
-install.packages("remotes") # once, if needed
+#install.packages("remotes") # once, if needed
 remotes::install_github("william-denault/susieRsmall")
 ```
 
